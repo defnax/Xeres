@@ -41,6 +41,44 @@ public final class ChessPosition
 		board = ("rnbqkbnrpppppppp" + ".".repeat(32) + "PPPPPPPPRNBQKBNR").toCharArray();
 	}
 
+	public static ChessPosition fromFen(String fen)
+	{
+		if (fen == null || fen.length() > 200) throw new IllegalArgumentException("Invalid FEN");
+		var parts = fen.split(" ", -1);
+		if (parts.length != 6 || !parts[1].matches("[wb]") || !parts[2].matches("-|K?Q?k?q?") ||
+				!parts[3].matches("-|[a-h][36]")) throw new IllegalArgumentException("Invalid FEN");
+		var ranks = parts[0].split("/", -1);
+		if (ranks.length != 8) throw new IllegalArgumentException("Invalid FEN ranks");
+		var position = new ChessPosition();
+		java.util.Arrays.fill(position.board, '.');
+		for (var row = 0; row < 8; row++)
+		{
+			var column = 0;
+			for (var piece : ranks[row].toCharArray())
+			{
+				if (piece >= '1' && piece <= '8') column += piece - '0';
+				else
+				{
+					if (column >= 8 || "prnbqkPRNBQK".indexOf(piece) < 0) throw new IllegalArgumentException("Invalid FEN piece");
+					position.board[row * 8 + column++] = piece;
+				}
+			}
+			if (column != 8) throw new IllegalArgumentException("Invalid FEN rank");
+		}
+		var squares = position.squares();
+		if (squares.chars().filter(c -> c == 'K').count() != 1 || squares.chars().filter(c -> c == 'k').count() != 1)
+		{
+			throw new IllegalArgumentException("Invalid FEN kings");
+		}
+		position.white = parts[1].equals("w");
+		position.castling = parts[2].equals("-") ? "" : parts[2];
+		position.enPassant = parts[3].equals("-") ? -1 : index(parts[3]);
+		position.halfmove = Integer.parseInt(parts[4]);
+		position.fullmove = Integer.parseInt(parts[5]);
+		if (position.halfmove < 0 || position.fullmove < 1 || position.fullmove > 10000) throw new IllegalArgumentException("Invalid FEN counters");
+		return position;
+	}
+
 	private ChessPosition(ChessPosition source)
 	{
 		board = source.board.clone();

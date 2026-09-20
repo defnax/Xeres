@@ -74,6 +74,25 @@ class ChessControllerTest extends AbstractControllerTest
 	}
 
 	@Test
+	void activeGamesAndWatchLifecycle() throws Exception
+	{
+		var id = io.xeres.common.id.GxsId.fromString(PEER_A);
+		var match = new io.xeres.common.dto.chess.ChessActiveGameDTO(PEER_A, "game-id", "Alice", "22".repeat(16), "Bob", false);
+		var watch = new io.xeres.common.dto.chess.ChessWatchDTO(PEER_A, "game-id", "", "", "", true, 0, List.of(), -1, -1, "WAITING", "");
+		when(chessRsService.activeGames()).thenReturn(List.of(match));
+		when(chessRsService.watch(id, "game-id")).thenReturn(watch);
+		when(chessRsService.watchedGame(id)).thenReturn(watch);
+		mvc.perform(getJson(BASE_URL + "/active")).andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].local").value(false)).andExpect(jsonPath("$[0].opponentName").value("Bob"));
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(BASE_URL + "/" + PEER_A + "/watch").param("gameId", "game-id"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("WAITING"));
+		mvc.perform(getJson(BASE_URL + "/" + PEER_A + "/watch")).andExpect(status().isOk());
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(BASE_URL + "/" + PEER_A + "/watch"))
+				.andExpect(status().isNoContent());
+		verify(chessRsService).leaveWatch(id);
+	}
+
+	@Test
 	void IsBusy_Success() throws Exception
 	{
 		when(chessRsService.isBusy()).thenReturn(true);

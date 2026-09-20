@@ -26,6 +26,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class ChessPositionTest
 {
 	@Test
+	void restoresSpectatorFenIncludingTurnCastlingAndEnPassant()
+	{
+		var position = new ChessPosition().move("e2e4").move("a7a6").move("e4e5").move("d7d5");
+		var restored = ChessPosition.fromFen(position.fen());
+		assertEquals(position.fen(), restored.fen());
+		assertEquals(position.hash(), restored.hash());
+		assertEquals(position.legalMoves(), restored.legalMoves());
+		assertEquals(position.move("e5d6").fen(), restored.move("e5d6").fen());
+		assertThrows(IllegalArgumentException.class, () -> ChessPosition.fromFen("8/8/8/8/8/8/8/8 w - - 0 1"));
+		assertThrows(IllegalArgumentException.class, () -> ChessPosition.fromFen("9/8/8/8/8/8/8/K6k w - - 0 1"));
+		assertThrows(IllegalArgumentException.class, () -> ChessPosition.fromFen(position.fen().replace(" w ", " x ")));
+	}
+
+	@Test
 	void initialPositionHasStandardMoveTree()
 	{
 		var position = new ChessPosition();

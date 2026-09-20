@@ -32,6 +32,8 @@ import io.xeres.app.xrs.service.gxstunnel.GxsTunnelRsService;
 import io.xeres.app.xrs.service.gxstunnel.GxsTunnelStatus;
 import io.xeres.app.xrs.service.identity.item.IdentityGroupItem;
 import io.xeres.common.dto.chess.ChessContactDTO;
+import io.xeres.common.dto.chess.ChessActiveGameDTO;
+import io.xeres.common.dto.chess.ChessWatchDTO;
 import io.xeres.common.dto.chess.ChessGameDTO;
 import io.xeres.common.id.GxsId;
 import io.xeres.common.protocol.xrs.RsServiceType;
@@ -60,6 +62,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	private final MessageService messageService;
 	private final ChessHistoryStore historyStore;
 	private final ChessContactsStore contactsStore;
+	private final ChessWatchSessions spectators;
 	private final Map<GxsId, ContactPresenceState> presenceStates = new ConcurrentHashMap<>();
 	private boolean chessBusy;
 	private List<ChessGameDTO> publishedGames = List.of();
@@ -76,6 +79,9 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 		private String nonce;
 		private Location probeTunnel;
 		private int failures;
+		private String opponentId = "";
+		private String opponentName = "";
+		private String gameId = "";
 	}
 
 	@Override
@@ -94,6 +100,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	{
 		maintainSessions();
 		tickChessPresence();
+		spectators.maintain();
 	}
 
 	private synchronized void maintainSessions()
@@ -129,6 +136,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 		this.messageService = messageService;
 		this.historyStore = historyStore;
 		this.contactsStore = contactsStore;
+		spectators = new ChessWatchSessions(mapper, this::name);
 	}
 
 	@Override
@@ -153,6 +161,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	public synchronized int onGxsTunnelInitialization(GxsTunnelRsService service)
 	{
 		tunnels = service;
+		spectators.initialize(service);
 		return TUNNEL_SERVICE_ID;
 	}
 
@@ -225,6 +234,56 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	{
 		maintainSessions();
 		return games.values().stream().map(this::snapshot).toList();
+	}
+
+	public synchronized List<ChessActiveGameDTO> activeGames()
+	{
+		var result = new ArrayList<ChessActiveGameDTO>();
+		var own = identities.getOwnIdentity().getGxsId().asString();
+		for (var game : games.values())
+		{
+			if (game.status.equals("ACTIVE"))
+			{
+				result.add(new ChessActiveGameDTO(game.peerGxsId.asString(), game.historyId, name(game.ownGxsId),
+						game.peerGxsId.asString(), game.name, true));
+			}
+		}
+		var pairs = new HashSet<String>();
+		for (var entry : presenceStates.entrySet())
+		{
+			var state = entry.getValue();
+			var host = entry.getKey().asString();
+			if (!List.of("playing", "checking").contains(state.status) || state.lastSeen == null || state.lastSeen.plusSeconds(120).isBefore(Instant.now()) ||
+					state.opponentId.isEmpty() || state.opponentId.equals(own) ||
+					contactsStore == null || !contactsStore.contains(host)) continue;
+			var pair = host.compareTo(state.opponentId) < 0 ? host + ":" + state.opponentId : state.opponentId + ":" + host;
+			if (!pairs.add(pair)) continue;
+			result.add(new ChessActiveGameDTO(host, state.gameId.isEmpty() ? "contact:" + pair : state.gameId,
+					name(entry.getKey()), state.opponentId, state.opponentName.isBlank() ? state.opponentId : state.opponentName, false));
+		}
+		return result;
+	}
+
+	public synchronized ChessWatchDTO watch(GxsId host, String gameId)
+	{
+		var match = activeGames().stream().filter(g -> !g.local() && g.host().equals(host.asString()) && g.gameId().equals(gameId))
+				.findFirst().orElseThrow(() -> new IllegalArgumentException("Contact game is no longer active"));
+		return spectators.watch(identities.getOwnIdentity().getGxsId(), match);
+	}
+
+	public synchronized ChessWatchDTO watchedGame(GxsId host)
+	{
+		return spectators.get(host);
+	}
+
+	public synchronized void leaveWatch(GxsId host)
+	{
+		spectators.leave(host);
+	}
+
+	private List<ChessWatchSessions.HostedGame> hostedGames()
+	{
+		return games.values().stream().map(g -> new ChessWatchSessions.HostedGame(g.historyId, snapshot(g))).toList();
 	}
 
 	public synchronized ChessGameDTO action(GxsId peer, String action)
@@ -338,7 +397,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	@Override
 	public synchronized void onGxsTunnelDataReceived(Location tunnel, byte[] data)
 	{
-		if (data.length > 2048)
+		if (data.length > 256 * 1024)
 		{
 			return;
 		}
@@ -352,6 +411,20 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 		{
 			var packet = mapper.readTree(data);
 			var type = packet.path("type").asString();
+			if (type.startsWith("chess_watch_"))
+			{
+				// Spectator packets must never desynchronize a playable game with this peer.
+				try
+				{
+					spectators.handle(peer, tunnel, packet, hostedGames());
+				}
+				catch (RuntimeException e)
+				{
+					log.debug("Rejected chess spectator packet: {}", e.getMessage());
+				}
+				return;
+			}
+			if (data.length > 2048) return;
 			if (type.equals("chess_presence_request"))
 			{
 				handlePresenceRequest(peer, tunnel, packet);
@@ -625,6 +698,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 	@Override
 	public synchronized void onGxsTunnelStatusChanged(Location tunnel, GxsId destination, GxsTunnelStatus status)
 	{
+		spectators.connectionChanged(destination, tunnel, status);
 		var game = games.get(destination);
 		if (game != null && tunnel.equals(game.tunnel) && !finished(game))
 		{
@@ -684,6 +758,7 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 		var snapshots = games.values().stream().map(this::snapshot).toList();
 		if (!snapshots.equals(publishedGames))
 		{
+			spectators.publish(hostedGames());
 			messageService.sendToConsumers(chessDestination(), MessageType.CHESS_GAMES, snapshots);
 			publishedGames = snapshots;
 		}
@@ -753,6 +828,13 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 		reply.put("version", 1);
 		reply.put("nonce", nonce);
 		reply.put("status", state);
+		games.values().stream().filter(g -> g.status.equals("ACTIVE")).findFirst().ifPresent(game -> {
+			// Presence discovery also works when the other player is not the spectator's contact.
+			reply.put("status", "playing");
+			reply.put("opponent_id", game.peerGxsId.asString());
+			reply.put("opponent_name", game.name);
+			reply.put("game_id", game.historyId);
+		});
 		try
 		{
 			tunnels.sendData(tunnel, TUNNEL_SERVICE_ID, mapper.writeValueAsBytes(reply));
@@ -797,6 +879,19 @@ public class ChessRsService extends RsService implements GxsTunnelRsClient
 			contactState.deadline = null;
 			contactState.nonce = null;
 			contactState.failures = 0;
+			contactState.opponentId = "";
+			contactState.opponentName = "";
+			contactState.gameId = "";
+			var opponent = packet.path("opponent_id").asString("");
+			if (status.equals("playing") && opponent.matches("[0-9a-fA-F]{32}") &&
+					!GxsId.fromString(opponent).isNullIdentifier() && !opponent.equalsIgnoreCase(peer.asString()))
+			{
+				contactState.opponentId = opponent.toLowerCase(Locale.ROOT);
+				var opponentName = packet.path("opponent_name").asString("");
+				contactState.opponentName = opponentName.substring(0, Math.min(256, opponentName.length()));
+				var gameId = packet.path("game_id").asString("");
+				contactState.gameId = gameId.length() <= 256 ? gameId : "";
+			}
 			if (contactsStore != null)
 			{
 				contactsStore.add(peer.asString(), contactState.lastSeen.toString());

@@ -21,6 +21,7 @@ package io.xeres.ui.controller.chess;
 
 import atlantafx.base.controls.CustomTextField;
 import io.xeres.common.dto.chess.ChessGameDTO;
+import io.xeres.common.dto.chess.ChessActiveGameDTO;
 import io.xeres.common.dto.chess.ChessHistorySummaryDTO;
 import io.xeres.common.dto.chess.ChessLeaderboardEntryDTO;
 import io.xeres.common.id.GxsId;
@@ -112,10 +113,10 @@ public class ChessPageController implements Controller, SmartLifecycle
 	@FXML private TableColumn<AvailablePlayerRow, AvailablePlayerRow> rejectColumn;
 
 	// Chess Players Tab - Right Pane: Active Games
-	@FXML private TableView<ChessGameDTO> activeGamesTable;
-	@FXML private TableColumn<ChessGameDTO, String> activePlayersColumn;
-	@FXML private TableColumn<ChessGameDTO, String> activeGameIdColumn;
-	@FXML private TableColumn<ChessGameDTO, ChessGameDTO> activeActionColumn;
+	@FXML private TableView<ChessActiveGameDTO> activeGamesTable;
+	@FXML private TableColumn<ChessActiveGameDTO, String> activePlayersColumn;
+	@FXML private TableColumn<ChessActiveGameDTO, String> activeGameIdColumn;
+	@FXML private TableColumn<ChessActiveGameDTO, ChessActiveGameDTO> activeActionColumn;
 
 	// Game History Tab
 	@FXML private TableView<ChessHistorySummaryDTO> historyTable;
@@ -142,7 +143,7 @@ public class ChessPageController implements Controller, SmartLifecycle
 	// Data Collections
 	private final ObservableList<ContactRow> contactsList = FXCollections.observableArrayList();
 	private final ObservableList<AvailablePlayerRow> availablePlayersList = FXCollections.observableArrayList();
-	private final ObservableList<ChessGameDTO> activeGamesList = FXCollections.observableArrayList();
+	private final ObservableList<ChessActiveGameDTO> activeGamesList = FXCollections.observableArrayList();
 	private final ObservableList<ChessHistorySummaryDTO> historyList = FXCollections.observableArrayList();
 	private final ObservableList<ChessLeaderboardEntryDTO> leaderboardList = FXCollections.observableArrayList();
 
@@ -729,9 +730,12 @@ public class ChessPageController implements Controller, SmartLifecycle
 		});
 
 		// Active Games table
-		activeGamesTable.setItems(activeGamesList);
-		activePlayersColumn.setCellValueFactory(v -> new ReadOnlyStringWrapper(formatPlayers(v.getValue())));
-		activeGameIdColumn.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().peer()));
+		var sortedActiveGames = new SortedList<>(activeGamesList);
+		sortedActiveGames.comparatorProperty().bind(activeGamesTable.comparatorProperty());
+		activeGamesTable.setItems(sortedActiveGames);
+		activePlayersColumn.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().playerName() + " vs " + v.getValue().opponentName()));
+		activeGameIdColumn.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().gameId()));
+		activeActionColumn.setSortable(false);
 		activeActionColumn.setCellValueFactory(v -> new ReadOnlyObjectWrapper<>(v.getValue()));
 		activeActionColumn.setCellFactory(_ -> new TableCell<>() {
 			private final Button openButton = new Button(bundle.getString("chess.history-open"));
@@ -741,24 +745,25 @@ public class ChessPageController implements Controller, SmartLifecycle
 					var item = getItem();
 					if (item != null)
 					{
-						openGame(item);
+						openActiveGame(item);
 					}
 				});
 			}
 			@Override
-			protected void updateItem(ChessGameDTO item, boolean empty)
+			protected void updateItem(ChessActiveGameDTO item, boolean empty)
 			{
 				super.updateItem(item, empty);
+				if (item != null) openButton.setText(bundle.getString(item.local() ? "chess.history-open" : "chess.watch.action"));
 				setGraphic(empty || item == null ? null : openButton);
 			}
 		});
 
 		activeGamesTable.setRowFactory(_ -> {
-			var row = new TableRow<ChessGameDTO>();
+			var row = new TableRow<ChessActiveGameDTO>();
 			row.setOnMouseClicked(e -> {
 				if (e.getClickCount() == 2 && !row.isEmpty())
 				{
-					openGame(row.getItem());
+					openActiveGame(row.getItem());
 				}
 			});
 			return row;
@@ -939,12 +944,10 @@ public class ChessPageController implements Controller, SmartLifecycle
 		chessClient.games().subscribe(games -> Platform.runLater(() -> {
 			latestGames.clear();
 			latestGames.addAll(games);
-			var active = games.stream()
-					.filter(g -> "ACTIVE".equals(g.status()))
-					.toList();
-			activeGamesList.setAll(active);
 			updateAvailablePlayers();
 		}), failure -> log.debug("Active chess games refresh error", failure));
+		chessClient.activeGames().subscribe(games -> Platform.runLater(() -> activeGamesList.setAll(games)),
+				failure -> log.debug("Contact chess games refresh error", failure));
 	}
 
 	private void updateAvailablePlayers()
@@ -1072,6 +1075,18 @@ public class ChessPageController implements Controller, SmartLifecycle
 	private void openGame(ChessGameDTO game)
 	{
 		windowManager.openChess(game);
+	}
+
+	private void openActiveGame(ChessActiveGameDTO game)
+	{
+		if (game.local())
+		{
+			latestGames.stream().filter(g -> g.peer().equals(game.opponent())).findFirst().ifPresent(this::openGame);
+		}
+		else
+		{
+			windowManager.watchChess(game);
+		}
 	}
 
 	private void showChessProfileDialog()

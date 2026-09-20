@@ -47,11 +47,12 @@ class ChessRsServiceTest
 	private final MessageService messages = mock(MessageService.class);
 	private ChessRsService chess;
 	private final ChessHistoryStore history = mock(ChessHistoryStore.class);
+	private final ChessContactsStore contacts = mock(ChessContactsStore.class);
+	private final IdentityService identities = mock(IdentityService.class);
 
 	@BeforeEach
 	void setup()
 	{
-		var identities = mock(IdentityService.class);
 		var identity = mock(IdentityGroupItem.class);
 		when(identity.getGxsId()).thenReturn(own);
 		when(identities.getOwnIdentity()).thenReturn(identity);
@@ -59,7 +60,7 @@ class ChessRsServiceTest
 		when(tunnels.requestSecuredTunnel(own, peer, 0xC4E5)).thenReturn(tunnel);
 		when(tunnels.getGxsFromTunnel(tunnel)).thenReturn(peer);
 		when(tunnels.sendData(eq(tunnel), eq(0xC4E5), any())).thenReturn(true);
-		chess = new ChessRsService(mock(RsServiceRegistry.class), identities, JsonMapper.builder().build(), messages, history, mock(ChessContactsStore.class));
+		chess = new ChessRsService(mock(RsServiceRegistry.class), identities, JsonMapper.builder().build(), messages, history, contacts);
 		assertEquals(0xC4E5, chess.onGxsTunnelInitialization(tunnels));
 	}
 
@@ -71,6 +72,86 @@ class ChessRsServiceTest
 		chess.action(peer, "e2e4");
 		verify(history, atLeastOnce()).save(anyString(), anyString(), anyString(), argThat(saved ->
 				saved.moves().equals(List.of("e2e4")) && saved.positions().size() == 2));
+	}
+
+	@Test
+	void discoversContactAgainstUnknownOpponentAndClearsFinishedPresence()
+	{
+		when(identities.hasOwnIdentity()).thenReturn(true);
+		when(contacts.getGxsIds()).thenReturn(java.util.Set.of(peer.asString()));
+		when(contacts.contains(peer.asString())).thenReturn(true);
+		org.springframework.test.util.ReflectionTestUtils.invokeMethod(chess, "tickChessPresence");
+		var packets = org.mockito.ArgumentCaptor.forClass(byte[].class);
+		verify(tunnels, atLeastOnce()).sendData(eq(tunnel), eq(0xC4E5), packets.capture());
+		var mapper = JsonMapper.builder().build();
+		var nonce = mapper.readTree(packets.getValue()).path("nonce").asString();
+		var other = "33".repeat(16);
+		receive(mapper.writeValueAsString(java.util.Map.of("type", "chess_presence_reply", "version", 1,
+				"nonce", nonce, "status", "playing", "opponent_id", other, "opponent_name", "Unknown opponent", "game_id", "remote-game")));
+		var active = chess.activeGames();
+		assertEquals(1, active.size());
+		assertFalse(active.getFirst().local());
+		assertEquals(other, active.getFirst().opponent());
+		assertEquals("Unknown opponent", active.getFirst().opponentName());
+		assertEquals("WAITING", chess.watch(peer, "remote-game").status());
+		assertTrue(chess.list().isEmpty());
+		assertThrows(IllegalArgumentException.class, () -> chess.action(peer, "e2e4"));
+		chess.leaveWatch(peer);
+
+		// A reciprocal presence probe starts a new authenticated refresh.
+		receive("{\"type\":\"chess_presence_request\",\"version\":1,\"nonce\":\"refresh\"}");
+		verify(tunnels, atLeastOnce()).sendData(eq(tunnel), eq(0xC4E5), packets.capture());
+		nonce = mapper.readTree(packets.getValue()).path("nonce").asString();
+		receive(mapper.writeValueAsString(java.util.Map.of("type", "chess_presence_reply", "version", 1, "nonce", nonce, "status", "available")));
+		assertTrue(chess.activeGames().isEmpty());
+	}
+
+	@Test
+	void advertisesLocalMatchAndIgnoresMalformedSpectatorTrafficFromOpponent()
+	{
+		chess.invite(peer);
+		receive("{\"type\":\"chess_accept\"}");
+		clearInvocations(tunnels);
+		receive("{\"type\":\"chess_presence_request\",\"version\":1,\"nonce\":\"probe\"}");
+		verify(tunnels).sendData(eq(tunnel), eq(0xC4E5), argThat(data -> {
+			var packet = JsonMapper.builder().build().readTree(data);
+			return packet.path("status").asString().equals("playing") &&
+					packet.path("opponent_id").asString().equals(peer.asString()) && !packet.path("game_id").asString().isBlank();
+		}));
+		receive("{\"type\":\"chess_watch_state\",\"version\":1,\"fen\":\"invalid\",\"sequence\":0}");
+		assertEquals("ACTIVE", chess.list().getFirst().status());
+		assertEquals(1, chess.activeGames().size());
+		assertTrue(chess.activeGames().getFirst().local());
+		chess.action(peer, "e2e4");
+		assertEquals(1, chess.list().getFirst().moves().size());
+	}
+
+	@Test
+	void relaysValidatedMovesFromBothPlayersAndWatchLeaveDoesNotEndGame()
+	{
+		var spectator = GxsId.fromString("33".repeat(16));
+		var spectatorTunnel = mock(Location.class);
+		when(tunnels.getGxsFromTunnel(spectatorTunnel)).thenReturn(spectator);
+		when(tunnels.sendData(eq(spectatorTunnel), eq(0xC4E5), any())).thenReturn(true);
+		chess.invite(peer);
+		receive("{\"type\":\"chess_accept\"}");
+		var request = "{\"type\":\"chess_watch_req\",\"version\":1,\"game_id\":\"contact_game:" + own.asString() + "_" + peer.asString() + "\"}";
+		chess.onGxsTunnelDataReceived(spectatorTunnel, request.getBytes(StandardCharsets.UTF_8));
+		clearInvocations(tunnels);
+		chess.action(peer, "e2e4");
+		verify(tunnels).sendData(eq(spectatorTunnel), eq(0xC4E5), argThat(data ->
+				JsonMapper.builder().build().readTree(data).path("sequence").asInt() == 1));
+		clearInvocations(tunnels);
+		var next = new ChessPosition().move("e2e4").move("e7e5");
+		receive("{\"type\":\"game_action\",\"action\":\"move:2:12:28:-:" + next.hash() + "\"}");
+		verify(tunnels).sendData(eq(spectatorTunnel), eq(0xC4E5), argThat(data ->
+				JsonMapper.builder().build().readTree(data).path("sequence").asInt() == 2));
+		chess.onGxsTunnelDataReceived(spectatorTunnel, request.replace("chess_watch_req", "chess_watch_leave").getBytes(StandardCharsets.UTF_8));
+		clearInvocations(tunnels);
+		chess.action(peer, "g1f3");
+		verify(tunnels, never()).sendData(eq(spectatorTunnel), anyInt(), any());
+		assertEquals("ACTIVE", chess.list().getFirst().status());
+		assertEquals(3, chess.list().getFirst().moves().size());
 	}
 
 	@Test

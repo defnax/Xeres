@@ -587,6 +587,24 @@ public class WindowManager implements SmartLifecycle
 						});
 	}
 
+	public void watchChess(io.xeres.common.dto.chess.ChessActiveGameDTO match)
+	{
+		getOpenedWindow(io.xeres.ui.controller.chess.ChessWatchWindowController.class, match.host())
+				.filter(Window::isShowing).ifPresentOrElse(window -> {
+					var stage = (Stage) window;
+					((io.xeres.ui.controller.chess.ChessWatchWindowController) stage.getUserData()).showMatch(match);
+					stage.setTitle(bundle.getString("chess.watch.title") + ": " + match.playerName() + " vs " + match.opponentName());
+					stage.setIconified(false);
+					stage.toFront();
+					stage.requestFocus();
+				}, () -> {
+					var controller = new io.xeres.ui.controller.chess.ChessWatchWindowController(chessClient, match, bundle, chessSettings);
+					UiWindow.builder("/view/chess/chess_watch_window.fxml", controller)
+							.setLocalId(match.host()).setTitle(bundle.getString("chess.watch.title") + ": " + match.playerName() + " vs " + match.opponentName())
+							.build().open();
+				});
+	}
+
 	public void openChangePassword(boolean withEmptyPassword)
 	{
 		Platform.runLater(() ->

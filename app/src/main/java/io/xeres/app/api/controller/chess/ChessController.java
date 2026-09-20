@@ -21,6 +21,8 @@ package io.xeres.app.api.controller.chess;
 
 import io.xeres.app.xrs.service.chess.ChessRsService;
 import io.xeres.common.dto.chess.ChessGameDTO;
+import io.xeres.common.dto.chess.ChessActiveGameDTO;
+import io.xeres.common.dto.chess.ChessWatchDTO;
 import io.xeres.common.id.GxsId;
 import io.xeres.common.rest.chess.ChessActionRequest;
 import jakarta.validation.Valid;
@@ -121,6 +123,31 @@ public class ChessController
 	public List<io.xeres.common.dto.chess.ChessHistorySummaryDTO> history() throws java.io.IOException
 	{
 		return history.list();
+	}
+
+	@GetMapping("/active")
+	public List<ChessActiveGameDTO> activeGames()
+	{
+		return chess.activeGames();
+	}
+
+	@PostMapping("/{peer}/watch")
+	public ChessWatchDTO watch(@PathVariable String peer, @RequestParam String gameId)
+	{
+		return chess.watch(identity(peer), gameId);
+	}
+
+	@GetMapping("/{peer}/watch")
+	public ChessWatchDTO watchedGame(@PathVariable String peer)
+	{
+		return chess.watchedGame(identity(peer));
+	}
+
+	@DeleteMapping("/{peer}/watch")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void leaveWatch(@PathVariable String peer)
+	{
+		chess.leaveWatch(identity(peer));
 	}
 
 	@GetMapping("/history/{id}")

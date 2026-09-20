@@ -20,6 +20,8 @@
 package io.xeres.ui.client;
 
 import io.xeres.common.dto.chess.ChessGameDTO;
+import io.xeres.common.dto.chess.ChessActiveGameDTO;
+import io.xeres.common.dto.chess.ChessWatchDTO;
 import io.xeres.common.events.StartupEvent;
 import io.xeres.common.rest.chess.ChessActionRequest;
 import io.xeres.common.util.RemoteUtils;
@@ -54,6 +56,31 @@ public class ChessClient
 			return Mono.just(java.util.List.of());
 		}
 		return client.get().uri("").retrieve().bodyToFlux(ChessGameDTO.class).collectList();
+	}
+
+	public Mono<java.util.List<ChessActiveGameDTO>> activeGames()
+	{
+		if (client == null) return Mono.just(java.util.List.of());
+		return client.get().uri("/active").retrieve().bodyToFlux(ChessActiveGameDTO.class).collectList();
+	}
+
+	public Mono<ChessWatchDTO> watch(String host, String gameId)
+	{
+		if (client == null) return Mono.error(new IllegalStateException("Chess is not connected"));
+		return client.post().uri(builder -> builder.path("/{host}/watch").queryParam("gameId", "{gameId}").build(host, gameId))
+				.retrieve().bodyToMono(ChessWatchDTO.class);
+	}
+
+	public Mono<ChessWatchDTO> watchedGame(String host)
+	{
+		if (client == null) return Mono.empty();
+		return client.get().uri("/{host}/watch", host).retrieve().bodyToMono(ChessWatchDTO.class);
+	}
+
+	public Mono<Void> leaveWatch(String host)
+	{
+		if (client == null) return Mono.empty();
+		return client.delete().uri("/{host}/watch", host).retrieve().bodyToMono(Void.class);
 	}
 
 	public Mono<java.util.List<io.xeres.common.dto.chess.ChessContactDTO>> contacts()
