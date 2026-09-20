@@ -45,6 +45,7 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -296,7 +297,9 @@ public class ChessPageController implements Controller, SmartLifecycle
 	{
 		// Filtered contacts
 		filteredContacts = new FilteredList<>(contactsList, _ -> true);
-		contactsTable.setItems(filteredContacts);
+		var sortedContacts = new SortedList<>(filteredContacts);
+		sortedContacts.comparatorProperty().bind(contactsTable.comparatorProperty());
+		contactsTable.setItems(sortedContacts);
 
 		searchContactsField.textProperty().addListener((_, _, text) -> applyContactsFilter(text));
 		onlineFilterButton.setOnAction(_ -> {
@@ -373,6 +376,7 @@ public class ChessPageController implements Controller, SmartLifecycle
 		});
 
 		contactPlayerColumn.setCellValueFactory(v -> new ReadOnlyObjectWrapper<>(v.getValue()));
+		contactPlayerColumn.setComparator(java.util.Comparator.comparing(ContactRow::name, String.CASE_INSENSITIVE_ORDER));
 		contactPlayerColumn.setCellFactory(_ -> new TableCell<>() {
 			private final AsyncImageView avatar = createAvatarView();
 			private final Label nameLabel = new Label();
