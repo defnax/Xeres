@@ -85,6 +85,7 @@ class ChessPageControllerTest
 	void chessPageLoadsInEverySupportedLanguage() throws IOException
 	{
 		org.mockito.Mockito.lenient().when(chessClient.games()).thenReturn(Mono.just(List.of()));
+		org.mockito.Mockito.lenient().when(chessClient.activeGames()).thenReturn(Mono.just(List.of()));
 		org.mockito.Mockito.lenient().when(chessClient.contacts()).thenReturn(Mono.just(List.of()));
 		org.mockito.Mockito.lenient().when(chessClient.isBusy()).thenReturn(Mono.just(false));
 		org.mockito.Mockito.lenient().when(chessClient.history()).thenReturn(Mono.just(List.of()));
