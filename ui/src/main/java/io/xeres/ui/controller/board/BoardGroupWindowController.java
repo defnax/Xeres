@@ -177,7 +177,7 @@ public class BoardGroupWindowController implements WindowController
 	{
 		var fileChooser = new FileChooser();
 		fileChooser.setTitle(bundle.getString("board.select-logo"));
-		ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+		fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 		ChooserUtils.setSupportedLoadImageFormats(fileChooser);
 		var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 		boardLogo.setFile(selectedFile);

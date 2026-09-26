@@ -25,7 +25,6 @@ import io.xeres.common.util.ScrambledString;
 import io.xeres.ui.client.ConfigClient;
 import io.xeres.ui.client.ProfileClient;
 import io.xeres.ui.controller.WindowController;
-import io.xeres.ui.support.util.ChooserUtils;
 import io.xeres.ui.support.util.Requester;
 import io.xeres.ui.support.util.TextFieldUtils;
 import io.xeres.ui.support.util.UiUtils;
@@ -165,7 +164,7 @@ public class AccountCreationWindowController implements WindowController
 			}
 			var fileChooser = new FileChooser();
 			fileChooser.setTitle(bundle.getString("account.generation.profile-load"));
-			ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+			fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 			fileChooser.getExtensionFilters().add(new ExtensionFilter(bundle.getString("file-requester.profiles"), "*.xml", "*.gpg", "*.asc"));
 			var selectedFile = fileChooser.showOpenDialog(UiUtils.getWindow(event));
 			if (selectedFile != null && selectedFile.canRead())

@@ -211,7 +211,7 @@ public class BoardMessageWindowController implements WindowController
 	{
 		var fileChooser = new FileChooser();
 		fileChooser.setTitle(bundle.getString("board.select-image"));
-		ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+		fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 		ChooserUtils.setSupportedLoadImageFormats(fileChooser);
 		var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 		imageSelectorView.setFile(selectedFile);

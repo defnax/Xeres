@@ -21,7 +21,6 @@ package io.xeres.ui.controller.settings;
 
 import io.xeres.common.util.RemoteUtils;
 import io.xeres.ui.model.settings.Settings;
-import io.xeres.ui.support.util.ChooserUtils;
 import io.xeres.ui.support.util.Requester;
 import io.xeres.ui.support.util.TextFieldUtils;
 import io.xeres.ui.support.util.UiUtils;
@@ -32,6 +31,7 @@ import javafx.stage.DirectoryChooser;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
 import java.util.ResourceBundle;
 
 @Component
@@ -66,7 +66,7 @@ public class SettingsTransferController implements SettingsController
 			directoryChooser.setTitle(bundle.getString("settings.transfer.select-incoming"));
 			if (settings.hasIncomingDirectory())
 			{
-				ChooserUtils.setInitialDirectory(directoryChooser, settings.getIncomingDirectory());
+				directoryChooser.setInitialDirectory(Path.of(settings.getIncomingDirectory()).toFile());
 			}
 			var selectedDirectory = directoryChooser.showDialog(UiUtils.getWindow(event));
 			if (selectedDirectory != null && selectedDirectory.isDirectory())

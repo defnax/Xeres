@@ -26,7 +26,6 @@ import io.xeres.ui.client.ShareClient;
 import io.xeres.ui.controller.WindowController;
 import io.xeres.ui.model.share.Share;
 import io.xeres.ui.support.contextmenu.XContextMenu;
-import io.xeres.ui.support.util.ChooserUtils;
 import io.xeres.ui.support.util.Requester;
 import io.xeres.ui.support.util.UiUtils;
 import javafx.application.Platform;
@@ -119,7 +118,7 @@ public class ShareWindowController implements WindowController
 			if (!isEmpty(param.getOldValue()))
 			{
 				var previousPath = Path.of(param.getOldValue());
-				ChooserUtils.setInitialDirectory(directoryChooser, previousPath);
+				directoryChooser.setInitialDirectory(previousPath.toFile());
 			}
 			var selectedDirectory = directoryChooser.showDialog(UiUtils.getWindow(shareTableView));
 			if (selectedDirectory != null && selectedDirectory.isDirectory())

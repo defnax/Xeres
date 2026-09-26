@@ -165,7 +165,7 @@ public final class LottieUiUtils
 		{
 			var fileChooser = new FileChooser();
 			fileChooser.setTitle(bundle.getString("file-requester.save-animation-title"));
-			ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+			fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 			fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("TGS", "*.tgs"));
 			fileChooser.setInitialFileName("Sticker_" + DATE_TIME_FILENAME_FORMAT.format(Instant.now()));
 

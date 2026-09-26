@@ -44,7 +44,6 @@ import io.xeres.ui.support.tooltip.TooltipUtils;
 import io.xeres.ui.support.tray.TrayService;
 import io.xeres.ui.support.updater.UpdateService;
 import io.xeres.ui.support.uri.*;
-import io.xeres.ui.support.util.ChooserUtils;
 import io.xeres.ui.support.util.Requester;
 import io.xeres.ui.support.util.UiUtils;
 import io.xeres.ui.support.window.WindowManager;
@@ -317,7 +316,7 @@ public class MainWindowController implements WindowController, SmartLifecycle
 		exportBackup.setOnAction(event -> {
 			var fileChooser = new FileChooser();
 			fileChooser.setTitle(bundle.getString("main.export-profile"));
-			ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+			fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 			fileChooser.getExtensionFilters().add(new ExtensionFilter(bundle.getString("file-requester.xml"), "*.xml"));
 			fileChooser.setInitialFileName("xeres_backup.xml");
 			var selectedFile = fileChooser.showSaveDialog(getWindow(event));
@@ -330,7 +329,7 @@ public class MainWindowController implements WindowController, SmartLifecycle
 		importFriends.setOnAction(event -> {
 			var fileChooser = new FileChooser();
 			fileChooser.setTitle(bundle.getString("main.import-friends"));
-			ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+			fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 			fileChooser.getExtensionFilters().add(new ExtensionFilter(bundle.getString("file-requester.xml"), "*.xml"));
 			var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 			if (selectedFile != null && selectedFile.canRead())

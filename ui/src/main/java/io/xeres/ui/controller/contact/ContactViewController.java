@@ -1437,7 +1437,7 @@ public class ContactViewController implements Controller, SmartLifecycle
 	{
 		var fileChooser = new FileChooser();
 		fileChooser.setTitle(bundle.getString("main.select-avatar"));
-		ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+		fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 		ChooserUtils.setSupportedLoadImageFormats(fileChooser);
 		var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 		if (selectedFile != null && selectedFile.canRead())

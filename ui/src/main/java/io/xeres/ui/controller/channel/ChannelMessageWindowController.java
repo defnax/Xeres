@@ -297,7 +297,7 @@ public class ChannelMessageWindowController implements WindowController
 	{
 		var fileChooser = new FileChooser();
 		fileChooser.setTitle(bundle.getString("channel.select-image"));
-		ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+		fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 		ChooserUtils.setSupportedLoadImageFormats(fileChooser);
 		var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 		postLogo.setFile(selectedFile);

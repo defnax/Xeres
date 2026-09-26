@@ -177,7 +177,7 @@ public class ChannelGroupWindowController implements WindowController
 	{
 		var fileChooser = new FileChooser();
 		fileChooser.setTitle(bundle.getString("channel.select-logo"));
-		ChooserUtils.setInitialDirectory(fileChooser, OsUtils.getDownloadDir());
+		fileChooser.setInitialDirectory(OsUtils.getDownloadDir().toFile());
 		ChooserUtils.setSupportedLoadImageFormats(fileChooser);
 		var selectedFile = fileChooser.showOpenDialog(getWindow(event));
 		channelLogo.setFile(selectedFile);

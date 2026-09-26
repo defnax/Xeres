@@ -20,79 +20,14 @@
 package io.xeres.ui.support.util;
 
 import io.xeres.common.i18n.I18nUtils;
-import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 
-import java.io.File;
-import java.nio.file.Path;
-
-/// Utility class that prevents a FileChooser or DirectoryChooser from failing to show up if the
-/// initial directory doesn't exist or is not a directory.
+/// Small helper class for Directory Choosers
 public final class ChooserUtils
 {
 	private ChooserUtils()
 	{
 		throw new UnsupportedOperationException("Utility class");
-	}
-
-	public static void setInitialDirectory(DirectoryChooser chooser, String initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		setInitialDirectory(chooser, Path.of(initialDirectory));
-	}
-
-	public static void setInitialDirectory(DirectoryChooser chooser, Path initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		setInitialDirectory(chooser, initialDirectory.toFile());
-	}
-
-	public static void setInitialDirectory(DirectoryChooser chooser, File initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		if (initialDirectory.isDirectory())
-		{
-			chooser.setInitialDirectory(initialDirectory);
-		}
-	}
-
-	public static void setInitialDirectory(FileChooser chooser, String initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		setInitialDirectory(chooser, Path.of(initialDirectory));
-	}
-
-	public static void setInitialDirectory(FileChooser chooser, Path initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		setInitialDirectory(chooser, initialDirectory.toFile());
-	}
-
-	public static void setInitialDirectory(FileChooser chooser, File initialDirectory)
-	{
-		if (initialDirectory == null)
-		{
-			return;
-		}
-		if (initialDirectory.isDirectory())
-		{
-			chooser.setInitialDirectory(initialDirectory);
-		}
 	}
 
 	public static void setSupportedLoadImageFormats(FileChooser chooser)

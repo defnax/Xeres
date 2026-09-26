@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025 by David Gerber - https://zapek.com
+ * Copyright (c) 2024-2026 by David Gerber - https://zapek.com
  *
  * This file is part of Xeres.
  *
@@ -23,7 +23,6 @@ import io.xeres.common.util.OsUtils;
 import io.xeres.ui.model.settings.Settings;
 import io.xeres.ui.support.sound.SoundPlayerService;
 import io.xeres.ui.support.sound.SoundSettings;
-import io.xeres.ui.support.util.ChooserUtils;
 import io.xeres.ui.support.util.UiUtils;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -160,7 +159,7 @@ public class SettingsSoundController implements SettingsController
 		if (parent != null)
 		{
 			var file = parent.toFile();
-			ChooserUtils.setInitialDirectory(fileChooser, file);
+			fileChooser.setInitialDirectory(file);
 		}
 	}
 
